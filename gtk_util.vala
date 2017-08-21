@@ -57,12 +57,6 @@ string buffer_contents(Gtk.TextBuffer buffer) {
     return buffer.get_text(start, end, true);
 }
 
-Gtk.MenuItem get_menu_item(Gtk.UIManager manager, string path) {
-    Gtk.MenuItem item = (Gtk.MenuItem) manager.get_widget(path);
-    assert(item != null);
-    return item;
-}
-
 public void show_error_dialog(string message) {
     Gtk.MessageDialog err_dialog = new Gtk.MessageDialog(null, Gtk.DialogFlags.MODAL, 
                                                 Gtk.MessageType.ERROR, Gtk.ButtonsType.OK, 

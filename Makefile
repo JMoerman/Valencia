@@ -8,7 +8,7 @@ VALAC = valac
 endif
 
 ifndef LIBVALA
-LIBVALA=libvala-0.24
+LIBVALA=libvala-0.26
 endif
 
 VALAC_VERSION := `$(VALAC) --version | awk '{print $$2}'`
@@ -18,16 +18,15 @@ SOURCES = autocomplete.vala browser.vala expression.vala gtk_util.vala parser.va
           scanner.vala settings.vala util.vala valencia.vala
 
 PACKAGES = --pkg gedit --pkg gee-0.8 --pkg gtk+-3.0 --pkg gtksourceview-3.0 \
-           --pkg libpeas-1.0 --pkg $(LIBVALA) --pkg vte-2.90
+           --pkg libpeas-1.0 --pkg $(LIBVALA) --pkg vte-2.91
 
 PACKAGE_VERSIONS = \
-    gedit >= 2.91.0 \
-    gedit <= 3.10.4 \
+    gedit >= 3.12.0 \
     gee-0.8 >= 0.8.6 \
     gtksourceview-3.0 >= 3.0.0 \
     gtk+-3.0 >= 3.0.0 \
     $(LIBVALA) \
-    vte-2.90 >= 0.27.90
+    vte-2.91
 
 OUTPUTS = libvalencia.so valencia.plugin
 

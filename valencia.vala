@@ -79,6 +79,111 @@ class ScanInfo : Object {
     
     public Expression outer() { return parse_info.outer; }
 }
+
+public class AppInstance : Peas.ExtensionBase, Gedit.AppActivatable {
+    Gedit.App _app;
+    
+    GLib.Menu menu;
+    
+    GLib.MenuItem go_to_definition_menu_item;
+    GLib.MenuItem find_symbol_menu_item;
+    GLib.MenuItem go_to_outer_scope_menu_item;
+    GLib.MenuItem go_back_menu_item;
+    GLib.MenuItem go_forward_menu_item;
+    GLib.MenuItem next_error_menu_item;
+    GLib.MenuItem prev_error_menu_item;
+    GLib.MenuItem display_tooltip_menu_item;
+    
+    GLib.MenuItem build_menu_item;
+    GLib.MenuItem clean_menu_item;
+    GLib.MenuItem run_menu_item;
+    GLib.MenuItem settings_menu_item;
+    
+    Gedit.MenuExtension menu_extension;
+
+    public Gedit.App app {
+        construct { _app = value; }
+	      owned get { return _app; }
+    }
+    
+    private AppInstance() {
+        Object();
+    }
+    
+    public void activate() {
+        // Gear menu
+        menu_extension = this.extend_menu("tools-section");
+        initialize_menu_items();
+    }
+    
+    void initialize_menu_items() {
+        menu = new GLib.Menu();
+        GLib.Menu search_menu = new GLib.Menu();
+        GLib.Menu project_menu = new GLib.Menu();
+        
+        menu.append_section(null, search_menu);
+        menu.append_section(null, project_menu);
+        
+        GLib.MenuItem valencia_menu_item = new GLib.MenuItem("_Valencia", null);
+        valencia_menu_item.set_submenu(menu);
+        menu_extension.append_menu_item(valencia_menu_item);
+        
+        go_to_definition_menu_item = new GLib.MenuItem("Go to _Definition", "win.go_to_definition");
+        search_menu.append_item(go_to_definition_menu_item);
+        app.add_accelerator("F12", "win.go_to_definition", null);
+        
+        find_symbol_menu_item = new GLib.MenuItem("Find _Symbol...", "win.find_symbol");
+        search_menu.append_item(find_symbol_menu_item);
+        app.add_accelerator("<ctrl><alt>s", "win.find_symbol", null);
+        
+        go_to_outer_scope_menu_item = new GLib.MenuItem("Go to _Outer Scope", "win.go_to_outer_scope");
+        search_menu.append_item(go_to_outer_scope_menu_item);
+        app.add_accelerator("<ctrl>F12", "win.go_to_outer_scope", null);
+        
+        go_back_menu_item = new GLib.MenuItem("Go _Back", "win.go_back");
+        search_menu.append_item(go_back_menu_item);
+        app.add_accelerator("<alt>Left", "win.go_back", null);
+        
+        go_forward_menu_item = new GLib.MenuItem("Go F_orward", "win.go_forward");
+        search_menu.append_item(go_forward_menu_item);
+        app.add_accelerator("<alt>Right", "win.go_forward", null);
+
+        next_error_menu_item = new GLib.MenuItem("_Next Error", "win.next_error");
+        search_menu.append_item(next_error_menu_item);
+        app.add_accelerator("<ctrl><alt>e", "win.next_error", null);
+        
+        prev_error_menu_item = new GLib.MenuItem("_Previous Error", "win.prev_error");
+        search_menu.append_item(prev_error_menu_item);
+        app.add_accelerator("<ctrl><alt>p", "win.prev_error", null);
+        
+        display_tooltip_menu_item = new GLib.MenuItem("_AutoComplete", "win.autocomplete");
+        search_menu.append_item(display_tooltip_menu_item);
+        app.add_accelerator("<ctrl>space", "win.autocomplete", null);
+        
+        build_menu_item = new GLib.MenuItem("_Build", "win.build");
+        project_menu.append_item(build_menu_item);
+        app.add_accelerator("<ctrl><alt>b", "win.build", null);
+        
+        clean_menu_item = new GLib.MenuItem("_Clean", "win.clear");
+        project_menu.append_item(clean_menu_item);
+        app.add_accelerator("<ctrl><alt>c", "win.clear", null);
+        
+        run_menu_item = new GLib.MenuItem("_Run", "win.run");
+        project_menu.append_item(run_menu_item);
+        app.add_accelerator("<ctrl><alt>r", "win.run", null);
+
+        settings_menu_item = new GLib.MenuItem("_Settings", "win.settings");
+        project_menu.append_item(settings_menu_item);
+        app.add_accelerator("<ctrl><alt>t", "win.settings", null);
+        
+        MenuItem wipe_valencia_item = new GLib.MenuItem("Wipe _Valencia Symbols", "win.wipe_symbols");
+        project_menu.append_item(wipe_valencia_item);
+    }
+    
+    void deactivate() {
+        menu_extension = null;
+    }
+}
   
 public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
     static Gee.ArrayList<Instance> instances = new Gee.ArrayList<Instance>();
@@ -92,26 +197,8 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
     
     Program last_program_to_build;
 
-    Gtk.ActionGroup action_group;
-    
-    Gtk.MenuItem go_to_definition_menu_item;
-    Gtk.MenuItem find_symbol_menu_item;
-    Gtk.MenuItem go_to_outer_scope_menu_item;
-    Gtk.MenuItem go_back_menu_item;
-    Gtk.MenuItem go_forward_menu_item;
-    Gtk.MenuItem next_error_menu_item;
-    Gtk.MenuItem prev_error_menu_item;
-    Gtk.MenuItem display_tooltip_menu_item;
-    
-    Gtk.MenuItem build_menu_item;
-    Gtk.MenuItem clean_menu_item;
-    Gtk.MenuItem run_menu_item;
-    Gtk.MenuItem settings_menu_item;
-
-    uint ui_id;
-    
     int saving;
-    bool child_process_running;
+    public bool child_process_running;
 
     // Output pane
     Gtk.TextTag error_tag;
@@ -168,70 +255,6 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
         new HashMap<weak Gedit.Document, bool>();
 
     Gedit.View view_to_scroll;
-   
-    // Menu item entries
-    const Gtk.ActionEntry[] entries = {
-        { "SearchGoToDefinition", null, "Go to _Definition", "F12",
-          "Jump to a symbol's definition", on_go_to_definition },
-        { "SearchFindSymbol", Gtk.Stock.FIND, "Find _Symbol...", "<ctrl><alt>s",
-          "Search for a symbol by name", on_find_symbol },
-        { "SearchGoToEnclosingMethod", null, "Go to _Outer Scope", "<ctrl>F12",
-          "Jump to the enclosing method or class", on_go_to_outer_scope },
-        { "SearchGoBack", Gtk.Stock.GO_BACK, "Go _Back", "<alt>Left",
-          "Go back after jumping to a definition", on_go_back },
-        { "SearchGoForward", Gtk.Stock.GO_FORWARD, "Go F_orward", "<alt>Right",
-          "Go forward to a definition after jumping backwards", on_go_forward },
-        { "SearchNextError", null, "_Next Error", "<ctrl><alt>e",
-          "Go to the next compiler error in the ouput and view panes", on_next_error },
-        { "SearchPrevError", null, "_Previous Error", "<ctrl><alt>p",
-          "Go to the previous compiler error in the ouput and view panes", on_prev_error },
-        { "SearchAutocomplete", null, "_AutoComplete", "<ctrl>space",
-          "Display method or symbol information", on_display_tooltip_or_autocomplete },
-        
-        { "Project", null, "_Project" },   // top-level menu
-
-        { "ProjectBuild", Gtk.Stock.CONVERT, "_Build", "<ctrl><alt>b",
-          "Build the project", on_build },
-        { "ProjectClean", Gtk.Stock.CLEAR, "_Clean", "<ctrl><alt>c",
-          "Clean build output", on_clean },
-        { "ProjectRun", Gtk.Stock.EXECUTE, "_Run", "<ctrl><alt>r",
-          "Run the program", on_run },
-        { "ProjectSettings", Gtk.Stock.PROPERTIES, "_Settings", "<ctrl><alt>t",
-          "Customize the build and clean commands", on_project_settings },
-        { "ProjectWipeValencia", null, "Wipe _Valencia Symbols", null,
-          "Wipe Valencia's discovered symbols and rebuild", on_wipe_valencia }
-    };
-
-    const string ui = """
-        <ui>
-          <menubar name="MenuBar">
-            <menu name="SearchMenu" action="Search">
-              <placeholder name="SearchOps_8">
-                <menuitem name="SearchGoToDefinitionMenu" action="SearchGoToDefinition"/>
-                <menuitem name="SearchFindSymbolMenu" action="SearchFindSymbol"/>
-                <menuitem name="SearchGoToEnclosingMethodMenu" action="SearchGoToEnclosingMethod"/>
-                <menuitem name="SearchGoBackMenu" action="SearchGoBack"/>
-                <menuitem name="SearchGoForwardMenu" action="SearchGoForward"/>
-                <separator/>
-                <menuitem name="SearchNextErrorMenu" action="SearchNextError"/>
-                <menuitem name="SearchPrevErrorMenu" action="SearchPrevError"/>
-                <separator/>
-                <menuitem name="SearchAutocompleteMenu" action="SearchAutocomplete"/>
-              </placeholder>
-            </menu>
-            <placeholder name="ExtraMenu_1">
-              <menu name="ProjectMenu" action="Project">
-                <menuitem name="ProjectBuildMenu" action="ProjectBuild"/>
-                <menuitem name="ProjectCleanMenu" action="ProjectClean"/>
-                <menuitem name="ProjectRunMenu" action="ProjectRun"/>
-                <menuitem name="ProjectSettingsMenu" action="ProjectSettings"/>
-                <separator/>
-                <menuitem name="ProjectWipeValenciaMenu" action="ProjectWipeValencia"/>
-              </menu>
-            </placeholder>
-          </menubar>
-        </ui>
-    """;    
 
     public Instance() {
         Object();
@@ -271,8 +294,8 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
         output_pane.add(output_view);
         output_pane.show_all();
 
-        Gedit.Panel panel = window.get_bottom_panel();
-        panel.add_item_with_stock_icon(output_pane, "build", "Build", Gtk.Stock.CONVERT);
+        Gtk.Stack stack = window.get_bottom_panel() as Gtk.Stack;
+        stack.add_titled(output_pane, "build", "Build");
 
         // Run pane
         run_terminal = new Vte.Terminal();
@@ -284,7 +307,7 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
         run_pane.add(run_terminal);
         run_pane.show_all();
         
-        panel.add_item_with_stock_icon(run_pane, "run", "Run", Gtk.Stock.EXECUTE);     
+        stack.add_titled(run_pane, "run", "Run");
 
         // Symbol pane
         symbol_browser = new SymbolBrowser(this);
@@ -299,22 +322,11 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
         instance_connections = new SignalConnection(this);
         tab_connections = new ArrayList<SignalConnection>();
         
-        // Toolbar menu
-        Gtk.UIManager manager = window.get_ui_manager();
-        
-        action_group = new Gtk.ActionGroup("valencia");
-        action_group.add_actions(entries, this);
-        manager.insert_action_group(action_group, 0);
-        
-        try {
-            ui_id = manager.add_ui_from_string(ui, -1);
-        } catch (Error e) {
-            error("error in add_ui_from_string: %s", e.message);
-        }
-        
-        initialize_menu_items(manager);
+        init_actions();
         init_error_regex();
-
+        window.active_tab_changed.connect(on_active_tab_changed);
+        window.focus_in_event.connect(on_focus_in_event);
+        
         instance_connections.add_signal(window, "tab-added", (Callback) tab_added_callback, this);
         instance_connections.add_signal(window, "tab-removed", (Callback) tab_removed_callback, this);
 
@@ -322,56 +334,131 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
             tab_added_callback(window, Gedit.Tab.get_from_document(document), this);
         }
     }
+    
+    void init_actions() {
+      GLib.SimpleAction action = new GLib.SimpleAction("go_to_definition", null);
+      action.activate.connect(on_go_to_definition);
+      window.add_action(action);
+      
+      action = new GLib.SimpleAction("find_symbol", null);
+      action.activate.connect(on_find_symbol);
+      window.add_action(action);
+      
+      action = new GLib.SimpleAction("go_to_outer_scope", null);
+      action.activate.connect(on_go_to_outer_scope);
+      window.add_action(action);
+      
+      action = new GLib.SimpleAction("go_back", null);
+      action.activate.connect(on_go_back);
+      window.add_action(action);
+      
+      action = new GLib.SimpleAction("go_forward", null);
+      action.activate.connect(on_go_forward);
+      window.add_action(action);
+      
+      action = new GLib.SimpleAction("next_error", null);
+      action.activate.connect(on_next_error);
+      window.add_action(action);
+      
+      action = new GLib.SimpleAction("prev_error", null);
+      action.activate.connect(on_prev_error);
+      window.add_action(action);
+      
+      action = new GLib.SimpleAction("autocomplete", null);
+      action.activate.connect(on_display_tooltip_or_autocomplete);
+      window.add_action(action);
+      
+      action = new GLib.SimpleAction("build", null);
+      action.activate.connect(on_build);
+      window.add_action(action);
+      
+      action = new GLib.SimpleAction("clear", null);
+      action.activate.connect(on_clean);
+      window.add_action(action);
+      
+      action = new GLib.SimpleAction("run", null);
+      action.activate.connect(on_run);
+      window.add_action(action);
+      
+      action = new GLib.SimpleAction("settings", null);
+      action.activate.connect(on_project_settings);
+      window.add_action(action);
+      
+      action = new GLib.SimpleAction("wipe_symbols", null);
+      action.activate.connect(on_wipe_valencia);
+      window.add_action(action);
+    }
+
+    void on_active_tab_changed(Gedit.Tab tab) {
+        update_actions();
+    }
+    
+    bool on_focus_in_event(Gdk.EventFocus event) {
+        update_actions();
+        return false;
+    }
+    
+    void update_actions() {
+        GLib.SimpleAction action;
+        bool document_is_vala_file = active_document_is_vala_file();
+
+        action = window.lookup_action("go_to_definition") as GLib.SimpleAction;
+        action.set_enabled(document_is_vala_file);
+
+        action = window.lookup_action("find_symbol") as GLib.SimpleAction;
+        action.set_enabled(document_is_vala_file);
+
+        action = window.lookup_action("go_to_outer_scope") as GLib.SimpleAction;
+        action.set_enabled(document_is_vala_file);
+
+        action = window.lookup_action("go_back") as GLib.SimpleAction;
+        action.set_enabled(can_go_back());
+
+        action = window.lookup_action("go_forward") as GLib.SimpleAction;
+        action.set_enabled(can_go_forward());
+
+        action = window.lookup_action("autocomplete") as GLib.SimpleAction;
+        action.set_enabled(document_is_vala_file);
+
+        bool activate_error_search = active_filename() != null && 
+                                     program_exists_for_active_document() && errors_exist();
+
+        action = window.lookup_action("next_error") as GLib.SimpleAction;
+        action.set_enabled(activate_error_search);
+
+        action = window.lookup_action("prev_error") as GLib.SimpleAction;
+        action.set_enabled(activate_error_search);
+
+        bool active_file_not_null = active_filename() != null;
+
+        action = window.lookup_action("build") as GLib.SimpleAction;
+        action.set_enabled(active_file_not_null);
+
+        action = window.lookup_action("clear") as GLib.SimpleAction;
+        action.set_enabled(active_file_not_null);
+
+        action = window.lookup_action("run") as GLib.SimpleAction;
+        // Make sure the program for the file exists first, otherwise disable the run button        
+        if (active_file_not_null && program_exists_for_active_document()) {
+            Program program = get_active_document_program();
+            program.reparse_makefile();
+            string binary_path = program.get_binary_run_path();
+
+            action.set_enabled(!child_process_running && binary_path != null &&
+                                        program.get_binary_is_executable());
+        } else {
+            action.set_enabled(false);
+        }
+
+        action = window.lookup_action("settings") as GLib.SimpleAction;
+        action.set_enabled(active_file_not_null);
+    }
 
     public static Instance? find(Gedit.Window window) {
         foreach (Instance i in instances)
             if (i.window == window)
                 return i;
         return null;
-    }
-    
-    void initialize_menu_items(Gtk.UIManager manager) {
-        Gtk.MenuItem search_menu = get_menu_item(manager, "/MenuBar/SearchMenu");
-        search_menu.activate.connect(on_search_menu_activated);
-        
-        Gtk.MenuItem project_menu = get_menu_item(manager, "/MenuBar/ExtraMenu_1/ProjectMenu");
-        project_menu.activate.connect(on_project_menu_activated);
-        
-        go_to_definition_menu_item = get_menu_item(manager,
-            "/MenuBar/SearchMenu/SearchOps_8/SearchGoToDefinitionMenu");
-        
-        find_symbol_menu_item = get_menu_item(manager,
-            "/MenuBar/SearchMenu/SearchOps_8/SearchFindSymbolMenu");
-        
-        go_to_outer_scope_menu_item = get_menu_item(manager,
-            "/MenuBar/SearchMenu/SearchOps_8/SearchGoToEnclosingMethodMenu");
-        
-        go_back_menu_item = get_menu_item(manager,
-            "/MenuBar/SearchMenu/SearchOps_8/SearchGoBackMenu");
-        
-        go_forward_menu_item = get_menu_item(manager, 
-            "/MenuBar/SearchMenu/SearchOps_8/SearchGoForwardMenu");
-
-        next_error_menu_item = get_menu_item(manager, 
-            "/MenuBar/SearchMenu/SearchOps_8/SearchNextErrorMenu");
-        
-        prev_error_menu_item = get_menu_item(manager,
-            "/MenuBar/SearchMenu/SearchOps_8/SearchPrevErrorMenu");
-        
-        display_tooltip_menu_item = get_menu_item(manager,
-            "/MenuBar/SearchMenu/SearchOps_8/SearchAutocompleteMenu");
-        
-        build_menu_item = get_menu_item(manager,
-            "/MenuBar/ExtraMenu_1/ProjectMenu/ProjectBuildMenu");
-        
-        clean_menu_item = get_menu_item(manager,
-            "/MenuBar/ExtraMenu_1/ProjectMenu/ProjectCleanMenu");
-        
-        run_menu_item = get_menu_item(manager,
-            "/MenuBar/ExtraMenu_1/ProjectMenu/ProjectRunMenu");
-
-        settings_menu_item = get_menu_item(manager, 
-              "/MenuBar/ExtraMenu_1/ProjectMenu/ProjectSettingsMenu");
     }
 
     static void tab_added_callback(Gedit.Window window, Gedit.Tab tab, Instance instance) {
@@ -569,7 +656,7 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
     }
 
     // TODO: Merge this method with saved_callback, below.
-    static void all_save_callback(Gedit.Document document, void *arg1, Instance instance) {
+    static void all_save_callback(Gedit.Document document, Instance instance) {
         string path = document_filename(document);
         Program.update_any(path, buffer_contents(document));
         instance.symbol_browser.on_document_saved();
@@ -646,9 +733,9 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
     
     void show_output_pane() {
         output_pane.show();
-        Gedit.Panel panel = window.get_bottom_panel();
-        panel.activate_item(output_pane);
-        panel.show();
+        Gtk.Stack stack = window.get_bottom_panel() as Gtk.Stack;
+        stack.visible_child = output_pane;
+        stack.show();
     }
     
     void spawn_process(string command, string working_directory, ProcessFinished callback) {
@@ -668,9 +755,9 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
         output_buffer.set_text("", 0);
         
         output_pane.show();
-        Gedit.Panel panel = window.get_bottom_panel();
-        panel.activate_item(output_pane);
-        panel.show();
+        Gtk.Stack stack = window.get_bottom_panel() as Gtk.Stack;
+        stack.visible_child = output_pane;
+        stack.show();
         
         Pid child_pid;
         int input_fd;
@@ -737,7 +824,7 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
             build();
     }
 
-    static void saved_callback(Gedit.Document document, void *arg1, Instance instance) {
+    static void saved_callback(Gedit.Document document, Instance instance) {
         SignalHandler.disconnect_by_func(document, (void *) saved_callback, instance);
         instance.on_saved();
     }
@@ -747,7 +834,7 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
             if (!d.is_untitled() && d.get_modified()) {
                 ++saving;
                 Signal.connect(d, "saved", (Callback) saved_callback, this);
-                d.do_save(0);
+                Gedit.commands_save_document(window, d);
             }
         if (saving == 0)
             build();
@@ -784,7 +871,7 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
         }
     }
 
-    static void document_loaded_callback(Gedit.Document document, void *arg1, Instance instance) {
+    static void document_loaded_callback(Gedit.Document document, Instance instance) {
         instance.on_document_loaded(document);
     }
 
@@ -798,7 +885,7 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
             return;
         }
         
-        Gedit.Encoding encoding = null;
+        Gtk.SourceEncoding encoding = null;
         tab = window.create_tab_from_location(File.new_for_path(filename), encoding, 0, 0, false, true);
         target_filename = filename;
         destination = dest;
@@ -1262,7 +1349,7 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
         int pid;
         bool ok;
         try {
-            ok = run_terminal.fork_command_full(
+            ok = run_terminal.spawn_sync(
                 0, Path.get_dirname(binary_path), args, null, 0, null, out pid);
         } catch (Error e) { ok = false; }
         if (!ok) {
@@ -1277,9 +1364,9 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
 
         run_terminal.reset(true, true);
         run_pane.show();
-        Gedit.Panel panel = window.get_bottom_panel();
-        panel.activate_item(run_pane);
-        panel.show();
+        Gtk.Stack stack = window.get_bottom_panel() as Gtk.Stack;
+        stack.visible_child = run_pane;
+        stack.show();
         
         child_process_running = true;
     }
@@ -1541,55 +1628,13 @@ void on_clean() {
         return filename != null && Program.find_existing(filename) != null;
     }
 
-    void on_search_menu_activated() {
-        bool document_is_vala_file = active_document_is_vala_file();
-        go_to_definition_menu_item.set_sensitive(document_is_vala_file);
-        find_symbol_menu_item.set_sensitive(document_is_vala_file);
-        go_to_outer_scope_menu_item.set_sensitive(document_is_vala_file);
-        
-        go_back_menu_item.set_sensitive(can_go_back());
-        go_forward_menu_item.set_sensitive(can_go_forward());
-
-        bool activate_error_search = active_filename() != null && 
-                                     program_exists_for_active_document() && errors_exist();
-
-        next_error_menu_item.set_sensitive(activate_error_search);
-        prev_error_menu_item.set_sensitive(activate_error_search);
-        
-        display_tooltip_menu_item.set_sensitive(document_is_vala_file);
-    }
-
-    void on_project_menu_activated() {
-        bool active_file_not_null = active_filename() != null;
-        build_menu_item.set_sensitive(active_file_not_null);
-        clean_menu_item.set_sensitive(active_file_not_null);
-
-        // Make sure the program for the file exists first, otherwise disable the run button        
-        if (active_file_not_null && program_exists_for_active_document()) {
-            Program program = get_active_document_program();
-            program.reparse_makefile();
-            string binary_path = program.get_binary_run_path();
-            
-            run_menu_item.set_sensitive(!child_process_running && binary_path != null &&
-                                        program.get_binary_is_executable());
-        } else {
-            run_menu_item.set_sensitive(false);
-        }
-
-        settings_menu_item.set_sensitive(active_file_not_null);
-    }
-
     public void update_state() {
     }
 
     public void deactivate() {
-        Gtk.UIManager manager = window.get_ui_manager();
-        manager.remove_ui(ui_id);
-        manager.remove_action_group(action_group);
-
-        Gedit.Panel panel = window.get_bottom_panel();
-        panel.remove_item(output_pane);
-        panel.remove_item(run_pane);
+        Gtk.Stack stack = window.get_bottom_panel() as Gtk.Stack;
+        stack.remove(output_pane);
+        stack.remove(run_pane);
         
         symbol_browser.deactivate();
         
@@ -1602,4 +1647,5 @@ void on_clean() {
 public void peas_register_types (TypeModule module) {
 	var o = module as Peas.ObjectModule;
  	o.register_extension_type(typeof(Gedit.WindowActivatable), typeof(Instance));
+ 	o.register_extension_type(typeof(Gedit.AppActivatable), typeof(AppInstance));
 }
